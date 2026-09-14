@@ -4,10 +4,12 @@ Vigila el precio y el stock de un producto de Shopify, y avisa por Telegram.
 
 Solo usa la libreria estandar: no hay que instalar nada.
 
-No hay avisos periodicos de "sigue igual": el bot esta en silencio hasta que
-pasa algo (baja de precio, sube de nuevo, se agota, vuelve a haber stock).
-La unica excepcion es si el propio bot falla al leer la web: eso si se avisa,
-para no confundir silencio con estabilidad.
+No hay avisos de "sigue todo igual" en cada ejecucion: el bot esta en
+silencio hasta que pasa algo real (baja de precio, sube de nuevo, se agota,
+vuelve a haber stock). La unica excepcion deliberada es un "sigo vivo"
+semanal, para que sepas que el bot sigue activo aunque no haya novedades.
+Si el propio bot falla al leer la web, eso tambien se avisa (aparte del
+heartbeat semanal), para no confundir silencio con estabilidad.
 
 Variables de entorno:
   TELEGRAM_BOT_TOKEN   (obligatoria) token que te da @BotFather
@@ -15,6 +17,7 @@ Variables de entorno:
   PRODUCT_URL          url del producto, sin el .js del final
   THRESHOLD_EUR        avisa cuando el precio baje de esto (por defecto 100)
   NOTIFY_ON_ANY_CHANGE "true" para avisar de cualquier cambio de precio
+  HEARTBEAT_DAYS        cada cuantos dias mandar el "sigo vivo" (por defecto 7)
   STATE_FILE           donde se guarda la memoria entre ejecuciones
 """
 
@@ -31,6 +34,7 @@ PRODUCT_URL = os.environ.get(
 )
 THRESHOLD_EUR = float(os.environ.get("THRESHOLD_EUR", "100"))
 NOTIFY_ON_ANY_CHANGE = os.environ.get("NOTIFY_ON_ANY_CHANGE", "false").lower() == "true"
+HEARTBEAT_DAYS = float(os.environ.get("HEARTBEAT_DAYS", "7"))
 STATE_FILE = os.environ.get("STATE_FILE", "state.json")
 
 # Si falla varias veces seguidas no queremos un aviso por ejecucion.
@@ -186,6 +190,19 @@ def main():
     # Una lectura correcta borra cualquier aviso de error pendiente.
     state.pop("last_error_notified_at", None)
 
+    now = datetime.now(timezone.utc)
+    if "last_heartbeat_at" not in state:
+        # Primera vez: arrancamos el contador desde ya, sin enviar nada
+        # todavia (para no duplicar el mensaje de --test que ya te llego).
+        state["last_heartbeat_at"] = now.isoformat()
+        heartbeat_due = False
+    else:
+        try:
+            last_heartbeat = datetime.fromisoformat(state["last_heartbeat_at"])
+            heartbeat_due = now - last_heartbeat >= timedelta(days=HEARTBEAT_DAYS)
+        except ValueError:
+            heartbeat_due = True
+
     stock_event_sent = False
 
     try:
@@ -235,6 +252,16 @@ def main():
                 "Stock: %s\n\n(Tu aviso sigue puesto en %.0f €.)\n\n%s"
                 % (flecha, title, previous, price, stock, THRESHOLD_EUR, PRODUCT_URL)
             )
+
+        elif not stock_event_sent and heartbeat_due:
+            # Nada ha cambiado, pero toca el "sigo vivo" semanal.
+            send_telegram(
+                "\U0001f4e1 <b>Sigo vigilando</b>\n\n"
+                "<b>%s</b>\nPrecio actual: <b>%.2f €</b>\nStock: %s\n\n"
+                "Te aviso si baja de %.0f € o cambia el stock.\n\n%s"
+                % (title, price, stock, THRESHOLD_EUR, PRODUCT_URL)
+            )
+            state["last_heartbeat_at"] = now.isoformat()
 
         elif not stock_event_sent:
             print("  -> sin novedad, no envio nada")

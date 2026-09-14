@@ -30,6 +30,7 @@ jobs:
           PRODUCT_URL: https://yepoda.es/products/the-yepoda-advent-calendar-2026
           THRESHOLD_EUR: "100"
           NOTIFY_ON_ANY_CHANGE: "false"
+          HEARTBEAT_DAYS: "7"
         run: python check_price.py
 
       # always() para que el estado se guarde tambien cuando el paso anterior

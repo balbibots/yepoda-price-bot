@@ -4,8 +4,10 @@ Comprueba cada 6 horas el precio del calendario de adviento de Yepoda y te
 escribe por Telegram cuando baja de **100 €**, cuando se agota, o cuando
 vuelve a haber stock.
 
-No manda avisos periodicos de "sigue todo igual": esta en silencio hasta que
-pasa algo. La unica excepcion es si el propio bot se rompe (ver mas abajo).
+No manda avisos de "sigue todo igual" en cada ejecucion: esta en silencio
+hasta que pasa algo real. La unica excepcion deliberada es un **"sigo vivo"
+una vez por semana**, para que sepas que el bot sigue activo aunque no haya
+novedades. Si el propio bot se rompe, eso tambien se avisa (ver mas abajo).
 
 - **Producto:** https://yepoda.es/products/the-yepoda-advent-calendar-2026
 - **Precio cuando se monto esto:** 169,00 € (PVP marcado: 475 €)
@@ -92,6 +94,7 @@ Se cambian en `.github/workflows/check-price.yml`, en el bloque `env:`.
 | `THRESHOLD_EUR` | `100` | Precio por debajo del cual quieres el aviso |
 | `PRODUCT_URL` | el calendario | Sirve para **cualquier** producto de Shopify |
 | `NOTIFY_ON_ANY_CHANGE` | `false` | `true` avisa de todo cambio, no solo del umbral |
+| `HEARTBEAT_DAYS` | `7` | Cada cuantos dias mandar el "sigo vivo" |
 
 Para cambiar el umbral a, por ejemplo, 120 €, edita esa linea:
 
@@ -114,11 +117,17 @@ Y la frecuencia, en `cron`:
 | El precio sigue igual, ejecucion tras ejecucion | ❌ Silencio total |
 | El producto se agota | ✅ Una vez, hasta que vuelva a haber stock |
 | Vuelve a haber stock | ✅ |
+| Ha pasado una semana sin ningun aviso | ✅ Un "sigo vigilando" con el precio y stock actual |
 | El bot no puede leer la web (esta rota, timeout...) | ✅ Maximo 1 vez / 24 h |
 
-La primera vez que se ejecuta el bot **no** avisa de disponibilidad (no hay
-nada previo con que comparar), solo guarda el punto de partida. Si en ese
-primer arranque el precio ya esta por debajo del umbral, si que avisa.
+La primera vez que se ejecuta el bot **no** avisa de disponibilidad ni manda
+el primer heartbeat (no hay nada previo con que comparar): solo guarda el
+punto de partida y el contador de la semana empieza a correr desde ahi. Si en
+ese primer arranque el precio ya esta por debajo del umbral, si que avisa.
+
+Si justo el dia que toca el heartbeat tambien cambia el precio o el stock,
+solo recibes **el aviso real** (no un heartbeat redundante el mismo dia) — el
+"sigo vivo" se pospone a la siguiente vez que no haya novedades.
 
 ## Detalles que hacen que esto no te falle
 
