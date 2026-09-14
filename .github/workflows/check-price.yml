@@ -1,0 +1,48 @@
+name: Vigilar precio
+
+on:
+  schedule:
+    # Cada 6 horas. El minuto 17 es aposta: a las horas en punto
+    # GitHub va saturado y retrasa los cron.
+    - cron: "17 */6 * * *"
+  # Permite lanzarlo a mano desde la pestana Actions.
+  workflow_dispatch:
+
+# Necesario para que el bot pueda guardar state.json en el repo.
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Comprobar el precio
+        id: check
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PRODUCT_URL: https://yepoda.es/products/the-yepoda-advent-calendar-2026
+          THRESHOLD_EUR: "100"
+          NOTIFY_ON_ANY_CHANGE: "false"
+        run: python check_price.py
+
+      # always() para que el estado se guarde tambien cuando el paso anterior
+      # falla: asi no repetimos el mismo aviso de error cada 6 horas.
+      - name: Guardar el estado
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain state.json)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add state.json
+            git commit -m "estado: comprobacion automatica de precio"
+            git push
+          else
+            echo "Sin cambios en el estado."
+          fi
