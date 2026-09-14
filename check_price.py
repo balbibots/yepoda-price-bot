@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """
-Vigila el precio de un producto de Shopify y avisa por Telegram.
+Vigila el precio y el stock de un producto de Shopify, y avisa por Telegram.
 
 Solo usa la libreria estandar: no hay que instalar nada.
+
+No hay avisos periodicos de "sigue igual": el bot esta en silencio hasta que
+pasa algo (baja de precio, sube de nuevo, se agota, vuelve a haber stock).
+La unica excepcion es si el propio bot falla al leer la web: eso si se avisa,
+para no confundir silencio con estabilidad.
 
 Variables de entorno:
   TELEGRAM_BOT_TOKEN   (obligatoria) token que te da @BotFather
@@ -176,12 +181,33 @@ def main():
 
     previous = state.get("last_price")
     already_warned = state.get("below_threshold_notified", False)
+    previous_available = state.get("last_available")
 
     # Una lectura correcta borra cualquier aviso de error pendiente.
     state.pop("last_error_notified_at", None)
 
+    stock_event_sent = False
+
     try:
         stock = "✅ disponible" if available else "❌ agotado"
+
+        # None significa "primera ejecucion, no hay nada con que comparar":
+        # no queremos un falso aviso de "ha vuelto" nada mas desplegar el bot.
+        if previous_available is not None and available != previous_available:
+            if available:
+                send_telegram(
+                    "\U0001f7e2 <b>¡Ha vuelto a estar disponible!</b>\n\n"
+                    "<b>%s</b>\nPrecio actual: <b>%.2f €</b>\n\n%s"
+                    % (title, price, PRODUCT_URL)
+                )
+            else:
+                send_telegram(
+                    "\U0001f6d1 <b>Se ha agotado</b>\n\n"
+                    "<b>%s</b>\nUltimo precio visto: %.2f €\n\n"
+                    "Te aviso en cuanto vuelva a haber stock.\n\n%s"
+                    % (title, price, PRODUCT_URL)
+                )
+            stock_event_sent = True
 
         if price < THRESHOLD_EUR and not already_warned:
             ahorro = ""
@@ -210,16 +236,18 @@ def main():
                 % (flecha, title, previous, price, stock, THRESHOLD_EUR, PRODUCT_URL)
             )
 
-        else:
+        elif not stock_event_sent:
             print("  -> sin novedad, no envio nada")
     except Exception as exc:  # noqa: BLE001
         # Importante: si el envio falla NO marcamos el aviso como dado.
-        # Al no guardar el estado, la proxima ejecucion lo reintenta.
+        # Al no guardar el estado, la proxima ejecucion lo reintenta
+        # (incluido el cambio de stock, aunque ya se haya intentado enviar).
         print("ERROR: no he podido enviarte el aviso: %s" % exc)
         print("Lo reintentare en la proxima ejecucion.")
         return 1
 
     state["last_price"] = price
+    state["last_available"] = available
     state["last_checked_at"] = datetime.now(timezone.utc).isoformat()
     save_state(state)
     return 0

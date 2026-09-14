@@ -1,7 +1,11 @@
 # Vigilante de precio — Yepoda Advent Calendar 2026
 
 Comprueba cada 6 horas el precio del calendario de adviento de Yepoda y te
-escribe por Telegram cuando baja de **100 €**.
+escribe por Telegram cuando baja de **100 €**, cuando se agota, o cuando
+vuelve a haber stock.
+
+No manda avisos periodicos de "sigue todo igual": esta en silencio hasta que
+pasa algo. La unica excepcion es si el propio bot se rompe (ver mas abajo).
 
 - **Producto:** https://yepoda.es/products/the-yepoda-advent-calendar-2026
 - **Precio cuando se monto esto:** 169,00 € (PVP marcado: 475 €)
@@ -102,11 +106,25 @@ Y la frecuencia, en `cron`:
 - cron: "17 8 * * *"     # una vez al dia, a las 8:17 UTC
 ```
 
+## Que te avisa (y que no)
+
+| Evento | ¿Avisa? |
+|---|---|
+| El precio baja de 100 € | ✅ Una vez, hasta que vuelva a subir |
+| El precio sigue igual, ejecucion tras ejecucion | ❌ Silencio total |
+| El producto se agota | ✅ Una vez, hasta que vuelva a haber stock |
+| Vuelve a haber stock | ✅ |
+| El bot no puede leer la web (esta rota, timeout...) | ✅ Maximo 1 vez / 24 h |
+
+La primera vez que se ejecuta el bot **no** avisa de disponibilidad (no hay
+nada previo con que comparar), solo guarda el punto de partida. Si en ese
+primer arranque el precio ya esta por debajo del umbral, si que avisa.
+
 ## Detalles que hacen que esto no te falle
 
 **No repite avisos.** `state.json` recuerda si ya te aviso. Si el precio baja
 de 100 € no recibes un mensaje cada 6 horas: recibes uno. Si vuelve a subir,
-el aviso se rearma solo para la proxima bajada.
+el aviso se rearma solo para la proxima bajada. Lo mismo con el stock.
 
 **Te avisa si se rompe.** Este es el fallo clasico de los bots caseros: la web
 cambia, el bot deja de leer el precio, y tu interpretas el silencio como "no ha
